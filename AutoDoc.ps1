@@ -74,7 +74,6 @@ function Read-SourceFile
  
     $strSource = Get-Content -Path "$Path\$File"
  
-    #$strContent += "### Methods`n`n"
     $strMethodName   = $File.Replace(".TcPOU", "")
     $strDescription  = $null
     $strReturnValue  = "- "
@@ -160,7 +159,7 @@ function Read-SourceFile
                     {
                         if ($strLine -match $RegexCommentBegin)
                         {  
-                            $strDescription = ''#$Matches["Line"]  + "`n"               
+                            $strDescription = ''           
                             $Description = $true                 
                         }
                     }
@@ -168,8 +167,7 @@ function Read-SourceFile
                 else
                 {
                     if ($strLine -match $RegexCommentEnd)
-                    {  
-                        #$strDescription += "`n"# $Matches["Line"];                     
+                    {                 
                         $Description = $false                                       
                     }
                     else
@@ -196,50 +194,52 @@ function Read-SourceFile
                     $VarOutput = $true;
                 }
             }
- 
-            if ($VarInput -eq $true)
+            else
             {
-                $strComment = ''
- 
-                if ($strLine -match $RegexComment)
-                {                   
-                    $strComment += $Matches["value"]                   
-                }
-                if ($strLine -match $RegexVariable)
-                {                   
-                    $strVarInput += "|"+ $Matches["Variable"] + " |" + $Matches["Type"] + " |"+ $strComment + "| `n"
-                    $strVarInput = $strVarInput.Replace(';', '')
-                }
- 
                 if ($strLine.Contains("END_VAR") -eq $true)
                 {
-                    $VarInput = $false;
-                }
-            }
- 
-            if ($VarOutput -eq $true)
-            {
-                $strComment = ''
- 
-                if ($strLine -match $RegexComment)
-                {                   
-                    $strComment += $Matches["value"]                   
-                }
-                if ($strLine -match $RegexVariable)
-                {                   
-                    $strVarOutput += "|"+ $Matches["Variable"] + " |" + $Matches["Type"] + " |"+ $strComment + "| `n"
-                    $strVarOutput = $strVarOutput.Replace(';', '')
-                }
- 
-                if ($strLine.Contains("END_VAR") -eq $true)
-                {
+                    $VarInput  = $false;
                     $VarOutput = $false;
                 }
+
+                if ($VarInput -eq $true)
+                {
+                    $strVarInput += Read-Variables($strLine)
+                }
+ 
+                if ($VarOutput -eq $true)
+                {
+                    $strVarOutput += Read-Variables($strLine)
+                }
             }
+ 
+
         }
     }
  
     $strContent  
+}
+
+function Read-Variables()
+{
+    param(
+        [string] $strLine 
+    )
+
+    $strComment = ''
+    $strData = ""
+
+    if ($strLine -match $RegexComment)
+    {                   
+        $strComment += $Matches["value"]                   
+    }
+    if ($strLine -match $RegexVariable)
+    {                   
+        $strData += "|"+ $Matches["Variable"] + " |" + $Matches["Type"] + " |"+ $strComment + "| `n"
+        $strData = $strData.Replace(';', '')
+    }
+
+    $strData
 }
  
 New-Documentation -Path $strProject -Filter "*.tcPOU" -Destination $strExport #-Structured
