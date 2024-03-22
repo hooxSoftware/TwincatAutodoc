@@ -1,6 +1,8 @@
 ﻿
 cls
 
+$strProject = 'C:\Temp\src' # change this lines for your Project
+$strExport  = 'C:\Temp\doc' # add folder for the md-files
  
 $RegExBegin = '<(Method|Action|Property|Get|Set) Name="'
 $RegexName  = '(?s).(.*?)'
