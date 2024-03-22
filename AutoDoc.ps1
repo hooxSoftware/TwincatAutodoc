@@ -1,10 +1,8 @@
 ﻿
 cls
 
-$strProject = 'C:\Temp\src'
-$strExport  = 'C:\Temp\doc'
  
-$RegExBegin = '<(Method|Action|Property|Get) Name="'
+$RegExBegin = '<(Method|Action|Property|Get|Set) Name="'
 $RegexName  = '(?s).(.*?)'
 $RegexEnd   = '" Id='
 $Regex      = "(?s)(?=($RegExBegin))($RegExName)(?=($RegExEnd))"
@@ -25,17 +23,16 @@ function New-Documentation
         [switch] $Structured
     )
  
- 
     $index = 0
  
     Get-ChildItem -Path $Path -Recurse -Filter "*.tcPou" | % {
  
-      $index++ 
+      $index++
       $strPath = Split-Path -Parent $_.fullname
       $strFile = Split-Path -Leaf $_.fullname
  
       $Content = Read-SourceFile -Path $strPath -File $strFile
-     
+    
       if ($index -lt 10)
       {
         $FileNew = "0" + $index.ToString() + "_" + $strFile.Replace("TcPOU", "md")
@@ -44,7 +41,7 @@ function New-Documentation
       {
         $FileNew = $index.ToString() + "_" + $strFile.Replace("TcPOU", "md")
       }
-     
+    
  
       $FolderNew = $Destination;
  
@@ -54,8 +51,8 @@ function New-Documentation
       }
  
       New-Item -Path $FolderNew -Name $FileNew -Force
-     
-      Set-Content -Path "$FolderNew\$FileNew" -Value $Content -Encoding UTF8    
+    
+      Set-Content -Path "$FolderNew\$FileNew" -Value $Content -Encoding UTF8   
  
     }
 }
@@ -64,7 +61,7 @@ function Read-SourceFile
 {
     param(
         [string] $Path,
-        [string] $File       
+        [string] $File      
     )
  
     Write-Host "Create $FileNew"
@@ -74,6 +71,7 @@ function Read-SourceFile
  
     $strSource = Get-Content -Path "$Path\$File"
  
+    $strMethodType   = ""
     $strMethodName   = $File.Replace(".TcPOU", "")
     $strDescription  = $null
     $strReturnValue  = "- "
@@ -81,6 +79,7 @@ function Read-SourceFile
     $strOutput       = $null
     $strVarInput     = $null
     $DeclarationPart = $false
+    $VarLocal        = $false
     $VarInput        = $false
     $VarOutput       = $false
     $strDescription  = '- '
@@ -96,11 +95,19 @@ function Read-SourceFile
             Select-String $Regex -AllMatches |
             % { $_.Matches } |
             % {
+                $strMethodType = "Method"
+ 
+                if ($_.Value.Contains("Action") -eq $true)
+                {
+                    $strMethodType = "Action"
+                }
+ 
                 $strMethodName = $_.Value.Replace("<Method Name=`"","")
                 $strMethodName = $strMethodName.Replace("<Action Name=`"","")
                 $strMethodName = $strMethodName.Replace("<Property Name=`"","")
                 $strMethodName = $strMethodName.Replace("<Get Name=`"","")
-                $strContent += "### Method " + $strMethodName + "  `n"
+                $strMethodName = $strMethodName.Replace("<Set Name=`"","")
+                $strContent += "### " + $strMethodType + " " + $strMethodName + "  `n"
               }
  
             if ($strLine.Contains('Declaration><![CDATA[') -eq $true)
@@ -113,14 +120,14 @@ function Read-SourceFile
         }
         if ($DeclarationPart -eq $true)
         {
-           
+          
             if ($strLine.Contains(']]></Declaration>') -eq $true)
             {
                 $DeclarationPart = $false
  
                 $strContent += "returns : $strReturnValue  `n"
                 $strContent += "#### Description  `n"
-                $strContent += "$strDescription `n"           
+                $strContent += "$strDescription `n"          
                 $strContent += "#### Input  `n"
                 if ($strVarInput.Length -gt 2)
                 {
@@ -147,44 +154,47 @@ function Read-SourceFile
                 $strContent += $strVarOutput + "`n"
             }
  
-            if ($VarInput -eq $false -and $VarOutput -eq $false)
+            if ($VarInput -eq $false -and $VarOutput -eq $false -and $VarLocal -eq $false)
             {
                 if ($Description -eq $false)
                 {
                     if ($strLine -match $RegexComment)
-                    {                   
-                        $strDescription += $Matches["value"] +"  `n"                   
+                    {                  
+                        $strDescription += $Matches["value"] +"  `n"                  
                     }
                     else
                     {
                         if ($strLine -match $RegexCommentBegin)
-                        {  
-                            $strDescription = ''           
-                            $Description = $true                 
+                        { 
+                            $strDescription = ''          
+                            $Description = $true                
                         }
                     }
                 }
                 else
                 {
                     if ($strLine -match $RegexCommentEnd)
-                    {                 
-                        $Description = $false                                       
+                    {                
+                        $Description = $false                                      
                     }
                     else
                     {
                         $strDescription += $strLine + "  `n"
-                    }                   
+                    }                  
                 }
- 
  
                 if ($strLine.Contains($strMethodName) -eq $true)
                 {
                     if ($strLine -match $RegexReturn.Replace('%Name', $strMethodName))
                     {
-                        $strReturnValue = $Matches["Return"] +"  `n" 
+                        $strReturnValue = $Matches["Return"] +"  `n"
                     }
                 }
  
+                if ($strLine.Contains("VAR") -eq $true)
+                {
+                    $VarLocal = $true;
+                }
                 if ($strLine.Contains("VAR_INPUT") -eq $true)
                 {
                     $VarInput = $true;
@@ -193,6 +203,7 @@ function Read-SourceFile
                 {
                     $VarOutput = $true;
                 }
+ 
             }
             else
             {
@@ -200,8 +211,9 @@ function Read-SourceFile
                 {
                     $VarInput  = $false;
                     $VarOutput = $false;
+                    $VarLocal  = $false;
                 }
-
+ 
                 if ($VarInput -eq $true)
                 {
                     $strVarInput += Read-Variables($strLine)
@@ -213,32 +225,32 @@ function Read-SourceFile
                 }
             }
  
-
+ 
         }
     }
  
-    $strContent  
+    $strContent 
 }
-
+ 
 function Read-Variables()
 {
     param(
-        [string] $strLine 
+        [string] $strLine
     )
-
+ 
     $strComment = ''
     $strData = ""
-
+ 
     if ($strLine -match $RegexComment)
-    {                   
-        $strComment += $Matches["value"]                   
+    {                  
+        $strComment += $Matches["value"]                  
     }
     if ($strLine -match $RegexVariable)
-    {                   
+    {                  
         $strData += "|"+ $Matches["Variable"] + " |" + $Matches["Type"] + " |"+ $strComment + "| `n"
         $strData = $strData.Replace(';', '')
     }
-
+ 
     $strData
 }
  
